@@ -1,0 +1,8 @@
+[package]
+name = "ral"
+version = "0.1.0"
+authors = ["Vasily Kochnev"]
+edition = "2018"
+
+[dependencies]
+vcell = "0.1.0"
