@@ -1,38 +1,29 @@
 #![doc = "0x00 - GPIO port mode register"]
 
-use core::ptr;
 use core::sync::atomic::AtomicPtr;
-use core::sync::atomic::Ordering::SeqCst;
 
 use vcell::VolatileCell;
 
-use ral::{value_read, value_write, Register, R};
+use ral::{borrow_register, return_register, init_register, value_read, value_write, Register, R};
 
 use crate::stm32::peripherals::gpioa::BASE_ADDRESS;
 
 const INDEX: usize = 0;
 
-const REGISTER: AtomicPtr<VolatileCell<<Moder as Register>::ValueType>> = AtomicPtr::new(
-    (BASE_ADDRESS + 32 * INDEX) as *mut VolatileCell<<Moder as Register>::ValueType>,
-);
+const REGISTER: AtomicPtr<VolatileCell<<Moder as Register>::ValueType>> =
+    init_register!(BASE_ADDRESS + 32 * INDEX, Moder);
 
 #[doc = "0x00 - GPIO port mode register"]
 pub fn moder() -> Option<Moder> {
-    Moder::get()
+    borrow_register(&REGISTER).map(Moder)
 }
 
 pub struct Moder(R<u32, Moder>);
 
-impl Moder {
-    fn get() -> Option<Moder> {
-        R::new(REGISTER.swap(ptr::null_mut(), SeqCst)).map(Moder)
-    }
-}
-
 impl Drop for Moder {
     fn drop(&mut self) {
         let Moder(register) = self;
-        REGISTER.swap(register.into(), SeqCst);
+        return_register(&REGISTER, register);
     }
 }
 

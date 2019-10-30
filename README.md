@@ -1,4 +1,4 @@
-# WIP: Register Access Library
+# WIP: Register Access Layer
 The intention of this library is to provide base layer for generated libraries for specific MCUs
 
 ## License
