@@ -8,6 +8,8 @@ use core::sync::atomic::Ordering::SeqCst;
 
 use vcell::VolatileCell;
 
+pub use ral_macro::*;
+
 pub struct R<ValueType, RegisterType>
 where
     ValueType:
@@ -86,44 +88,19 @@ pub trait Register {
     const RESET_VALUE: Self::ValueType;
 
     #[doc = r" Get value of the register as raw bits"]
-    #[inline]
     fn get_bits(&self) -> Self::ValueType;
 
     #[doc = r" Set value of the register as raw bits"]
-    #[inline]
     fn set_bits(&mut self, bits: Self::ValueType) -> &mut Self::RegisterType;
 
     #[doc = r" Reset value of the register to default"]
-    #[inline]
     fn reset(&mut self) -> &mut Self::RegisterType;
 
     #[doc = r" Loads value from the register"]
-    #[inline]
     fn read(&mut self) -> &mut Self::RegisterType;
 
     #[doc = r" Writes value to the register"]
-    #[inline]
     fn write(&mut self) -> &mut Self::RegisterType;
-}
-
-#[doc = r"Extract specific bits from register value"]
-#[macro_export]
-macro_rules! value_read {
-    ($r: expr, $m: expr, $o: expr, $t: ty) => {
-        (Register::get_bits($r) >> $o) as $t & $m
-    };
-}
-
-#[doc = r"Set specific bits to register value"]
-#[macro_export]
-macro_rules! value_write {
-    ($r: expr, $m: expr, $o: expr, $v: expr) => {
-        Register::set_bits(
-            $r,
-            (Register::get_bits($r) & !(($m as <Self as Register>::ValueType) << $o))
-                | ((($v & $m) as <Self as Register>::ValueType) << $o),
-        )
-    };
 }
 
 #[macro_export]
@@ -157,11 +134,13 @@ pub fn return_register<ValueType, RegisterType>(
 
 #[cfg(test)]
 mod tests {
+    use core::convert::TryFrom;
+
     use super::*;
 
-    struct Testr(R<u32, Testr>);
+    struct TestR(R<u32, TestR>);
 
-    impl Register for Testr {
+    impl Register for TestR {
         type RegisterType = Self;
 
         type ValueType = u32;
@@ -194,23 +173,49 @@ mod tests {
         }
     }
 
-    impl Testr {
+    impl TestR {
         #[inline]
-        pub fn get_testr_30_31(&self) -> u8 {
-            value_read!(self, 3u8, 30, u8)
+        pub fn get_test_30_31(
+            &self,
+        ) -> Result<u8, <u8 as TryFrom<<Self as Register>::ValueType>>::Error> {
+            <u8 as TryFrom<<Self as Register>::ValueType>>::try_from(
+                (Register::get_bits(self) >> 30) & 3u32,
+            )
         }
 
-        pub fn set_testr_30_31(&mut self, value: u8) -> &mut Self {
-            value_write!(self, 3u8, 30, value)
+        pub fn set_test_30_31(
+            &mut self,
+            value: u8,
+        ) -> Result<&mut Self, <<Self as Register>::ValueType as TryFrom<u8>>::Error> {
+            Register::set_bits(
+                self,
+                (Register::get_bits(self) & !(3u32 << 30))
+                    | ((<<Self as Register>::ValueType as TryFrom<u8>>::try_from(value)? & 3u32)
+                        << 30),
+            );
+            Ok(self)
         }
 
         #[inline]
-        pub fn get_testr_0_3(&self) -> u8 {
-            value_read!(self, 0xFu8, 0, u8)
+        pub fn get_test_0_3(
+            &self,
+        ) -> Result<u8, <u8 as TryFrom<<Self as Register>::ValueType>>::Error> {
+            <u8 as TryFrom<<Self as Register>::ValueType>>::try_from(
+                (Register::get_bits(self) >> 0) & 0xFu32,
+            )
         }
 
-        pub fn set_testr_0_3(&mut self, value: u8) -> &mut Self {
-            value_write!(self, 0xFu8, 0, value)
+        pub fn set_test_0_3(
+            &mut self,
+            value: u8,
+        ) -> Result<&mut Self, <<Self as Register>::ValueType as TryFrom<u8>>::Error> {
+            Register::set_bits(
+                self,
+                (Register::get_bits(self) & !(0xFu32 << 0))
+                    | ((<<Self as Register>::ValueType as TryFrom<u8>>::try_from(value)? & 0xFu32)
+                        << 0),
+            );
+            Ok(self)
         }
     }
 
@@ -218,14 +223,14 @@ mod tests {
     fn test_register_access() {
         let mut registry_data: u32 = 0x89AB_CDEF;
 
-        let register_holder: AtomicPtr<VolatileCell<<Testr as Register>::ValueType>> =
-            init_register!(&mut registry_data as *mut u32, Testr);
-        let mut register_some: Option<R<u32, Testr>> = borrow_register(&register_holder);
-        let register_none: Option<R<u32, Testr>> = borrow_register(&register_holder);
+        let register_holder: AtomicPtr<VolatileCell<<TestR as Register>::ValueType>> =
+            init_register!(&mut registry_data as *mut u32, TestR);
+        let mut register_some: Option<R<u32, TestR>> = borrow_register(&register_holder);
+        let register_none: Option<R<u32, TestR>> = borrow_register(&register_holder);
         assert!(register_some.is_some());
         assert!(register_none.is_none());
         return_register(&register_holder, register_some.as_mut().unwrap());
-        let mut register: Option<R<u32, Testr>> = borrow_register(&register_holder);
+        let mut register: Option<R<u32, TestR>> = borrow_register(&register_holder);
         assert!(register.is_some());
         return_register(&register_holder, register.as_mut().unwrap());
     }
@@ -234,47 +239,47 @@ mod tests {
     fn test_get() {
         let mut registry_data: u32 = 0x8765_4321;
 
-        let register_holder: AtomicPtr<VolatileCell<<Testr as Register>::ValueType>> =
-            init_register!(&mut registry_data as *mut u32, Testr);
-        let mut register = borrow_register(&register_holder)
-            .map(Testr)
-            .unwrap();
+        let register_holder: AtomicPtr<VolatileCell<<TestR as Register>::ValueType>> =
+            init_register!(&mut registry_data as *mut u32, TestR);
+        let mut register = borrow_register(&register_holder).map(TestR).unwrap();
         register.read();
-        assert_eq!(register.get_testr_0_3(), 0x01);
-        assert_eq!(register.get_testr_30_31(), 0x02);
+        assert_eq!(register.get_test_0_3().unwrap(), 0x01);
+        assert_eq!(register.get_test_30_31().unwrap(), 0x02);
     }
 
     #[test]
     fn test_set() {
         let mut registry_data: u32 = 0x8765_4321;
 
-        let register_holder: AtomicPtr<VolatileCell<<Testr as Register>::ValueType>> =
-            init_register!(&mut registry_data as *mut u32, Testr);
-        let mut register = borrow_register(&register_holder)
-            .map(Testr)
-            .unwrap();
-        register.set_testr_0_3(0xDAu8);
-        register.set_testr_30_31(0x0Au8);
-        register.write();
-        let Testr(r) = &mut register;
+        let register_holder: AtomicPtr<VolatileCell<<TestR as Register>::ValueType>> =
+            init_register!(&mut registry_data as *mut u32, TestR);
+        let mut register = borrow_register(&register_holder).map(TestR).unwrap();
+        register
+            .set_test_0_3(0xDAu8)
+            .unwrap()
+            .set_test_30_31(0x0Au8)
+            .unwrap()
+            .write();
+        let TestR(r) = &mut register;
         return_register(&register_holder, r);
-        assert_eq!(registry_data, 0x8000_000A | Testr::RESET_VALUE);
+        assert_eq!(registry_data, 0x8000_000A | TestR::RESET_VALUE);
     }
 
     #[test]
     fn test_update() {
         let mut registry_data: u32 = 0x8765_4321;
 
-        let register_holder: AtomicPtr<VolatileCell<<Testr as Register>::ValueType>> =
-            init_register!(&mut registry_data as *mut u32, Testr);
-        let mut register = borrow_register(&register_holder)
-            .map(Testr)
-            .unwrap();
-        register.read();
-        register.set_testr_0_3(0xDAu8);
-        register.set_testr_30_31(0x01u8);
-        register.write();
-        let Testr(r) = &mut register;
+        let register_holder: AtomicPtr<VolatileCell<<TestR as Register>::ValueType>> =
+            init_register!(&mut registry_data as *mut u32, TestR);
+        let mut register = borrow_register(&register_holder).map(TestR).unwrap();
+        register
+            .read()
+            .set_test_0_3(0xDAu8)
+            .unwrap()
+            .set_test_30_31(0x01u8)
+            .unwrap()
+            .write();
+        let TestR(r) = &mut register;
         return_register(&register_holder, r);
         assert_eq!(registry_data, 0x4B65_432A);
     }
@@ -283,16 +288,14 @@ mod tests {
     fn test_reset() {
         let mut registry_data: u32 = 0x8765_4321;
 
-        let register_holder: AtomicPtr<VolatileCell<<Testr as Register>::ValueType>> =
-            init_register!(&mut registry_data as *mut u32, Testr);
-        let mut register = borrow_register(&register_holder)
-            .map(Testr)
-            .unwrap();
+        let register_holder: AtomicPtr<VolatileCell<<TestR as Register>::ValueType>> =
+            init_register!(&mut registry_data as *mut u32, TestR);
+        let mut register = borrow_register(&register_holder).map(TestR).unwrap();
         register.read();
         register.reset();
         register.write();
-        let Testr(r) = &mut register;
+        let TestR(r) = &mut register;
         return_register(&register_holder, r);
-        assert_eq!(registry_data, Testr::RESET_VALUE);
+        assert_eq!(registry_data, TestR::RESET_VALUE);
     }
 }
