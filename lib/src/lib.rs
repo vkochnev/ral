@@ -6,7 +6,7 @@ use core::ptr::{null_mut, NonNull};
 use core::sync::atomic::AtomicPtr;
 use core::sync::atomic::Ordering::SeqCst;
 
-use vcell::VolatileCell;
+pub use vcell::VolatileCell;
 
 pub use ral_macro::*;
 

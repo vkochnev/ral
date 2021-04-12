@@ -6,7 +6,7 @@ use crate::cpu32::types::EnumType;
 
 register! {
     #[doc = "0x10 - Either register"]
-    Either {
+    either {
         offset: 0x00,
         value_size: 32,
         reset_mask: 0xFFFF_FFFF,
