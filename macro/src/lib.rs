@@ -49,7 +49,7 @@
 //!     VolatileCell,
 //! };
 //! const REGISTER: AtomicPtr<VolatileCell<<Reg0 as Register>::ValueType>> = AtomicPtr::new(
-//!     (super::BASE_ADDRESS /* Enclosing peripheral/cluster base address */ + 32 /* value size */ * 0x00 /* offset */) as *mut VolatileCell<<Reg0 as Register>::ValueType>,
+//!     (super::BASE_ADDRESS /* Enclosing peripheral/cluster base address */ + 0x00 /* offset */) as *mut VolatileCell<<Reg0 as Register>::ValueType>,
 //! );
 //! ///Register description
 //! pub fn reg0() -> Option<Reg0> {

@@ -38,7 +38,7 @@ pub(super) fn render_register(register: _Register) -> Result<TokenStream> {
     );
     let method_name = register.name;
     let description = register.description;
-    let index = register.offset;
+    let offset = register.offset;
     let value_size = register.value_size;
     let value_type = format_ident!("u{}", value_size.value, span = value_size.span());
     let reset_mask = register.reset_mask;
@@ -53,7 +53,7 @@ pub(super) fn render_register(register: _Register) -> Result<TokenStream> {
     }
     Ok(quote! {
         const REGISTER: AtomicPtr<VolatileCell<<#name as Register>::ValueType>> =
-            init_register!(super::BASE_ADDRESS + #value_size * #index, #name);
+            init_register!(super::BASE_ADDRESS + #offset, #name);
 
         #[doc = #description]
         pub fn #method_name() -> Option<#name> {
