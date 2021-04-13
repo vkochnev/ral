@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use crate::cpu32::peripherals::some::either;
+use crate::cpu32::peripherals::some;
 use crate::cpu32::types::EnumType;
 use crate::cpu32::types::EnumType::{One, Three, Two};
 
@@ -8,7 +8,7 @@ mod cpu32;
 
 fn main() {
     // Do not read or write as it will result in UB due to incorrect address in example
-    let mut either = either::either().unwrap();
+    let mut either = some::either().unwrap();
     let either3 = either.get_either3();
 
     let either2 = either.is_either2_set();

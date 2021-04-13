@@ -16,6 +16,7 @@ pub(super) fn build_ident(name: String) -> Ident {
     }
 }
 
+/// Extracted from [syn](https://crates.io/crates/syn) crate
 fn accept_as_ident(ident: &Ident) -> bool {
     match ident.to_string().as_str() {
         "_" |

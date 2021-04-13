@@ -5,7 +5,7 @@ use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{LitInt, Result};
 
-pub(crate) struct _Spanned<T> {
+pub(super) struct _Spanned<T> {
     pub(crate) value: T,
     pub(crate) lit: LitInt,
 }

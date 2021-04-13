@@ -27,8 +27,6 @@ pub(super) fn render_uses() -> TokenStream {
         use core::convert::TryFrom;
 
         use ral::{borrow_register, init_register, return_register, value_read, value_write, R, Register, VolatileCell};
-
-        use super::BASE_ADDRESS;
     }
 }
 
@@ -55,7 +53,7 @@ pub(super) fn render_register(register: _Register) -> Result<TokenStream> {
     }
     Ok(quote! {
         const REGISTER: AtomicPtr<VolatileCell<<#name as Register>::ValueType>> =
-            init_register!(BASE_ADDRESS + #value_size * #index, #name);
+            init_register!(super::BASE_ADDRESS + #value_size * #index, #name);
 
         #[doc = #description]
         pub fn #method_name() -> Option<#name> {
@@ -142,7 +140,7 @@ fn render_read(field: &_Field, value_type: &Ident, value_size: u32) -> Result<To
                 #[doc = #description]
                 #[inline]
                 pub fn #method_name(&self) -> #ty {
-                    (value_read!(self, #mask, #offset)) == 1
+                    value_read!(self, #mask, #offset) == 1
                 }
             })
         }
@@ -152,7 +150,7 @@ fn render_read(field: &_Field, value_type: &Ident, value_size: u32) -> Result<To
                 #[doc = #description]
                 #[inline]
                 pub fn #method_name(&self) -> #ty {
-                    (value_read!(self, #mask, #offset)) as #ty
+                    value_read!(self, #mask, #offset) as #ty
                 }
             })
         }

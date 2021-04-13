@@ -1,14 +1,14 @@
 use proc_macro2::Span;
 use syn::{Result, TypePath};
 
-pub(crate) enum _FieldType {
+pub(super) enum _FieldType {
     Bool(TypePath),
     Primitive(TypePath),
     Custom(TypePath),
 }
 
 impl _FieldType {
-    pub(crate) fn from(ty: TypePath, width: u32, width_span: Span) -> Result<_FieldType> {
+    pub(super) fn from(ty: TypePath, width: u32, width_span: Span) -> Result<_FieldType> {
         if let Some(ty_name) = ty.path.get_ident() {
             match ty_name.to_string().as_str() {
                 "bool" => {

@@ -1,20 +1,20 @@
-use syn::{Attribute, braced, Ident, LitInt, LitStr};
 use syn::parse::{Parse, ParseStream, Result};
 use syn::spanned::Spanned;
 use syn::token::{Colon, Comma};
+use syn::{braced, Attribute, Ident, LitInt, LitStr};
 
 use crate::field::_Fields;
 use crate::parse::{attrs_to_meta_map, get_meta};
 use crate::spanned::_Spanned;
 
-pub(crate) struct _Register {
-    pub(crate) name: Ident,
-    pub(crate) description: LitStr,
-    pub(crate) offset: _Spanned<u32>,
-    pub(crate) value_size: _Spanned<u32>,
-    pub(crate) reset_mask: LitInt,
-    pub(crate) reset_value: LitInt,
-    pub(crate) fields: _Fields,
+pub(super) struct _Register {
+    pub(super) name: Ident,
+    pub(super) description: LitStr,
+    pub(super) offset: _Spanned<u32>,
+    pub(super) value_size: _Spanned<u32>,
+    pub(super) reset_mask: LitInt,
+    pub(super) reset_value: LitInt,
+    pub(super) fields: _Fields,
 }
 
 impl Parse for _Register {

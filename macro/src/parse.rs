@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use proc_macro2::{Ident, Span};
-use syn::{Attribute, Lit, LitStr, Meta, Result};
 use syn::spanned::Spanned;
+use syn::{Attribute, Lit, LitStr, Meta, Result};
 
-pub(crate) fn adjust_ident(ident: Ident) -> Ident {
+pub(super) fn adjust_ident(ident: Ident) -> Ident {
     let string_ident = ident.to_string();
     if string_ident.starts_with("_") {
         Ident::new(string_ident.trim_start_matches("_"), ident.span())
@@ -13,7 +13,7 @@ pub(crate) fn adjust_ident(ident: Ident) -> Ident {
     }
 }
 
-pub(crate) fn attrs_to_meta_map(attrs: Vec<Attribute>) -> Result<HashMap<String, Meta>> {
+pub(super) fn attrs_to_meta_map(attrs: Vec<Attribute>) -> Result<HashMap<String, Meta>> {
     let attrs_iter = attrs
         .iter()
         .map(Attribute::parse_meta)
@@ -33,7 +33,7 @@ pub(crate) fn attrs_to_meta_map(attrs: Vec<Attribute>) -> Result<HashMap<String,
     Ok(attrs)
 }
 
-pub(crate) fn get_meta(
+pub(super) fn get_meta(
     attr_name: &str,
     attrs: &mut HashMap<String, Meta>,
     span: Span,

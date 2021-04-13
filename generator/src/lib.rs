@@ -1,3 +1,31 @@
+//! Code generator for [ral](https://docs.rs/ral) crate
+//!
+//! # How to install
+//!
+//! ```bash
+//! $ cargo install ral-gen
+//! ```
+//!
+//! # How to use
+//! ```bash
+//! $ cargo ral-gen --svd <svd file location> --out <target project directory>
+//! ```
+//! or short form
+//! ```bash
+//! $ cargo ral-gen -i <svd file location> -o <target project directory>
+//! ```
+//!
+//! # What will be generated
+//! Module structure described in [ral-macro](https://docs.rs/ral-macro) crate documentation will be generated
+//!
+//! # Required `Cargo.toml` content
+//! ```toml
+//! [package]
+//! edition = "2018"
+//!
+//! [dependencies]
+//! ral = "matching ral version"
+//! ```
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -16,6 +44,7 @@ mod peripheral;
 mod register;
 mod utils;
 
+/// Generates module structure
 pub fn generate(svd_file_name: &str, project_dir: &str) -> Result<()> {
     let device = load_device(svd_file_name)?;
     let project_dir = Path::new(project_dir);

@@ -1,3 +1,7 @@
+//! Library providing basis for low level registers access
+//! Mostly for internal use by macros residing in `ral-macro`
+//! For usage examples refer to [ral-macro](https://docs.rs/ral-macro) crate documentation
+//! This crate re-exports macros refined in `ral-macro`, so this is the only library needed to be defined in dependencies
 #![no_std]
 
 use core::marker::{Copy, PhantomData};
@@ -10,6 +14,7 @@ pub use vcell::VolatileCell;
 
 pub use ral_macro::*;
 
+/// Register data holder, abstracts interaction with actual hardware
 pub struct R<ValueType, RegisterType>
 where
     ValueType:
@@ -27,6 +32,7 @@ where
         Copy + Not<Output = ValueType> + BitAnd<Output = ValueType> + BitOr<Output = ValueType>,
     RegisterType: Register<RegisterType = RegisterType, ValueType = ValueType>,
 {
+    /// Creates new instance bound to specific register
     #[inline]
     pub fn new(register: *mut VolatileCell<ValueType>) -> Option<Self> {
         NonNull::new(register).map(|ptr| Self {
@@ -36,16 +42,19 @@ where
         })
     }
 
+    /// Gets cached bits
     #[inline]
     pub fn get_bits(&self) -> ValueType {
         self.bits
     }
 
+    /// Stores bits into cache
     #[inline]
     pub fn set_bits(&mut self, bits: ValueType) {
         self.bits = bits;
     }
 
+    /// Loads data from register to cache
     #[inline]
     pub fn read(&mut self) {
         unsafe {
@@ -53,6 +62,7 @@ where
         }
     }
 
+    /// Stores data from cache to register
     #[inline]
     pub fn write(&mut self) {
         unsafe {
@@ -75,53 +85,59 @@ where
     }
 }
 
+/// Trait representing register, actual registers are to implement this
 pub trait Register {
+    /// Actual register type for operations chaining
     type RegisterType: Register;
 
+    /// Value type, expected to be one of `u8`, `u16`, `u32` or `u64`
     type ValueType: Copy
         + Not<Output = Self::ValueType>
         + BitAnd<Output = Self::ValueType>
         + BitOr<Output = Self::ValueType>;
 
+    /// Reset mask
     const MASK: Self::ValueType;
 
+    /// Reset value
     const RESET_VALUE: Self::ValueType;
 
-    #[doc = r" Get value of the register as raw bits"]
+    /// Get value of the register as raw bits
     fn get_bits(&self) -> Self::ValueType;
 
-    #[doc = r" Set value of the register as raw bits"]
+    /// Set value of the register as raw bits
     fn set_bits(&mut self, bits: Self::ValueType) -> &mut Self::RegisterType;
 
-    #[doc = r" Reset value of the register to default"]
+    /// Reset value of the register to default
     fn reset(&mut self) -> &mut Self::RegisterType;
 
-    #[doc = r" Loads value from the register"]
+    /// Loads value from the register
     fn read(&mut self) -> &mut Self::RegisterType;
 
-    #[doc = r" Writes value to the register"]
+    /// Writes value to the register
     fn write(&mut self) -> &mut Self::RegisterType;
 }
 
-#[doc = r"Extract specific bits from register value"]
+/// Extract specific bits from register value
 #[macro_export]
 macro_rules! value_read {
     ($r: expr, $m: expr, $o: expr) => {
-        (Register::get_bits($r) >> $o) & $m
+        ((Register::get_bits($r) >> $o) & $m)
     };
 }
 
-#[doc = r"Set specific bits to register value"]
+/// Set specific bits to register value
 #[macro_export]
 macro_rules! value_write {
     ($r: expr, $m: expr, $o: expr, $v: expr) => {
         Register::set_bits(
             $r,
-            (Register::get_bits($r) & !($m << $o)) | (($v & $m) << $o),
+            (Register::get_bits($r) & !($m << $o)) | ((($v) & $m) << $o),
         );
     };
 }
 
+/// Init register
 #[macro_export]
 macro_rules! init_register {
     ($a: expr, $t: tt) => {
@@ -129,6 +145,7 @@ macro_rules! init_register {
     };
 }
 
+/// Exclusively borrows register
 pub fn borrow_register<ValueType, RegisterType>(
     holder: &AtomicPtr<VolatileCell<ValueType>>,
 ) -> Option<R<ValueType, RegisterType>>
@@ -140,6 +157,7 @@ where
     R::new(holder.swap(null_mut(), SeqCst))
 }
 
+/// Releases register, so it can be borrowed again
 pub fn return_register<ValueType, RegisterType>(
     holder: &AtomicPtr<VolatileCell<ValueType>>,
     register: &mut R<ValueType, RegisterType>,
@@ -193,7 +211,7 @@ mod tests {
     impl TestR {
         #[inline]
         pub fn get_test_30_31(&self) -> u8 {
-            (value_read!(self, 0x3u32, 30)) as u8
+            value_read!(self, 0x3u32, 30) as u8
         }
 
         pub fn set_test_30_31(&mut self, value: u8) -> &mut Self {
@@ -203,7 +221,7 @@ mod tests {
 
         #[inline]
         pub fn get_test_0_3(&self) -> u8 {
-            (value_read!(self, 0xFu32, 0)) as u8
+            value_read!(self, 0xFu32, 0) as u8
         }
 
         pub fn set_test_0_3(&mut self, value: u8) -> &mut Self {

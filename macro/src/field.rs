@@ -8,7 +8,7 @@ use crate::field_type::_FieldType;
 use crate::parse::{adjust_ident, attrs_to_meta_map, get_meta};
 use crate::spanned::_Spanned;
 
-pub(crate) struct _Field {
+pub(super) struct _Field {
     pub(crate) name: Ident,
     pub(crate) description: LitStr,
     pub(crate) ty: _FieldType,
@@ -18,7 +18,7 @@ pub(crate) struct _Field {
 }
 
 impl _Field {
-    pub(crate) fn validate(&self, value_size: u32) -> Result<()> {
+    pub(super) fn validate(&self, value_size: u32) -> Result<()> {
         let width = self.width.value;
         let offset = self.offset.value;
         if width > value_size {
@@ -83,10 +83,10 @@ impl Parse for _Field {
     }
 }
 
-pub(crate) struct _Fields(Vec<_Field>);
+pub(super) struct _Fields(Vec<_Field>);
 
 impl _Fields {
-    pub(crate) fn validate(&self, value_size: u32, name_span: Span) -> Result<()> {
+    pub(super) fn validate(&self, value_size: u32, name_span: Span) -> Result<()> {
         if self.0.is_empty() {
             Err(syn::Error::new(
                 name_span,
