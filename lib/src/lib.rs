@@ -103,6 +103,25 @@ pub trait Register {
     fn write(&mut self) -> &mut Self::RegisterType;
 }
 
+#[doc = r"Extract specific bits from register value"]
+#[macro_export]
+macro_rules! value_read {
+    ($r: expr, $m: expr, $o: expr) => {
+        (Register::get_bits($r) >> $o) & $m
+    };
+}
+
+#[doc = r"Set specific bits to register value"]
+#[macro_export]
+macro_rules! value_write {
+    ($r: expr, $m: expr, $o: expr, $v: expr) => {
+        Register::set_bits(
+            $r,
+            (Register::get_bits($r) & !($m << $o)) | (($v & $m) << $o),
+        );
+    };
+}
+
 #[macro_export]
 macro_rules! init_register {
     ($a: expr, $t: tt) => {
@@ -134,8 +153,6 @@ pub fn return_register<ValueType, RegisterType>(
 
 #[cfg(test)]
 mod tests {
-    use core::convert::TryFrom;
-
     use super::*;
 
     struct TestR(R<u32, TestR>);
@@ -175,47 +192,23 @@ mod tests {
 
     impl TestR {
         #[inline]
-        pub fn get_test_30_31(
-            &self,
-        ) -> Result<u8, <u8 as TryFrom<<Self as Register>::ValueType>>::Error> {
-            <u8 as TryFrom<<Self as Register>::ValueType>>::try_from(
-                (Register::get_bits(self) >> 30) & 3u32,
-            )
+        pub fn get_test_30_31(&self) -> u8 {
+            (value_read!(self, 0x3u32, 30)) as u8
         }
 
-        pub fn set_test_30_31(
-            &mut self,
-            value: u8,
-        ) -> Result<&mut Self, <<Self as Register>::ValueType as TryFrom<u8>>::Error> {
-            Register::set_bits(
-                self,
-                (Register::get_bits(self) & !(3u32 << 30))
-                    | ((<<Self as Register>::ValueType as TryFrom<u8>>::try_from(value)? & 3u32)
-                        << 30),
-            );
-            Ok(self)
+        pub fn set_test_30_31(&mut self, value: u8) -> &mut Self {
+            value_write!(self, 0x3u32, 30, value as <Self as Register>::ValueType);
+            self
         }
 
         #[inline]
-        pub fn get_test_0_3(
-            &self,
-        ) -> Result<u8, <u8 as TryFrom<<Self as Register>::ValueType>>::Error> {
-            <u8 as TryFrom<<Self as Register>::ValueType>>::try_from(
-                (Register::get_bits(self) >> 0) & 0xFu32,
-            )
+        pub fn get_test_0_3(&self) -> u8 {
+            (value_read!(self, 0xFu32, 0)) as u8
         }
 
-        pub fn set_test_0_3(
-            &mut self,
-            value: u8,
-        ) -> Result<&mut Self, <<Self as Register>::ValueType as TryFrom<u8>>::Error> {
-            Register::set_bits(
-                self,
-                (Register::get_bits(self) & !(0xFu32 << 0))
-                    | ((<<Self as Register>::ValueType as TryFrom<u8>>::try_from(value)? & 0xFu32)
-                        << 0),
-            );
-            Ok(self)
+        pub fn set_test_0_3(&mut self, value: u8) -> &mut Self {
+            value_write!(self, 0xFu32, 0, value as <Self as Register>::ValueType);
+            self
         }
     }
 
@@ -243,8 +236,8 @@ mod tests {
             init_register!(&mut registry_data as *mut u32, TestR);
         let mut register = borrow_register(&register_holder).map(TestR).unwrap();
         register.read();
-        assert_eq!(register.get_test_0_3().unwrap(), 0x01);
-        assert_eq!(register.get_test_30_31().unwrap(), 0x02);
+        assert_eq!(register.get_test_0_3(), 0x01);
+        assert_eq!(register.get_test_30_31(), 0x02);
     }
 
     #[test]
@@ -254,12 +247,7 @@ mod tests {
         let register_holder: AtomicPtr<VolatileCell<<TestR as Register>::ValueType>> =
             init_register!(&mut registry_data as *mut u32, TestR);
         let mut register = borrow_register(&register_holder).map(TestR).unwrap();
-        register
-            .set_test_0_3(0xDAu8)
-            .unwrap()
-            .set_test_30_31(0x0Au8)
-            .unwrap()
-            .write();
+        register.set_test_0_3(0xDAu8).set_test_30_31(0x0Au8).write();
         let TestR(r) = &mut register;
         return_register(&register_holder, r);
         assert_eq!(registry_data, 0x8000_000A | TestR::RESET_VALUE);
@@ -275,9 +263,7 @@ mod tests {
         register
             .read()
             .set_test_0_3(0xDAu8)
-            .unwrap()
             .set_test_30_31(0x01u8)
-            .unwrap()
             .write();
         let TestR(r) = &mut register;
         return_register(&register_holder, r);

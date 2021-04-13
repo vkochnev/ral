@@ -1,9 +1,9 @@
 use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
-use syn::{Ident, LitInt};
 use syn::parse::Result;
 use syn::spanned::Spanned;
+use syn::{Ident, LitInt};
 
 use crate::field::_Field;
 use crate::field_type::_FieldType;
@@ -26,7 +26,7 @@ pub(super) fn render_uses() -> TokenStream {
 
         use core::convert::TryFrom;
 
-        use ral::{borrow_register, init_register, R, Register, return_register, VolatileCell};
+        use ral::{borrow_register, init_register, return_register, value_read, value_write, R, Register, VolatileCell};
 
         use super::BASE_ADDRESS;
     }
@@ -142,7 +142,7 @@ fn render_read(field: &_Field, value_type: &Ident, value_size: u32) -> Result<To
                 #[doc = #description]
                 #[inline]
                 pub fn #method_name(&self) -> #ty {
-                    ((Register::get_bits(self) >> #offset) & 1) == 1
+                    (value_read!(self, #mask, #offset)) == 1
                 }
             })
         }
@@ -152,7 +152,7 @@ fn render_read(field: &_Field, value_type: &Ident, value_size: u32) -> Result<To
                 #[doc = #description]
                 #[inline]
                 pub fn #method_name(&self) -> #ty {
-                    ((Register::get_bits(self) >> #offset) & #mask) as #ty
+                    (value_read!(self, #mask, #offset)) as #ty
                 }
             })
         }
@@ -166,7 +166,7 @@ fn render_read(field: &_Field, value_type: &Ident, value_size: u32) -> Result<To
                 #[doc = #description]
                 #[inline]
                 pub fn #method_name(&self) -> Result<#ty, <#ty as TryFrom<<Self as Register>::ValueType>>::Error> {
-                    <#ty as TryFrom<<Self as Register>::ValueType>>::try_from((Register::get_bits(self) >> #offset) & #mask)
+                    <#ty as TryFrom<<Self as Register>::ValueType>>::try_from(value_read!(self, #mask, #offset))
                 }
             })
         }
@@ -186,9 +186,7 @@ fn render_write(field: &_Field, value_type: &Ident, value_size: u32) -> Result<T
                 #[doc = #description]
                 #[inline]
                 pub fn #method_name(&mut self, value: #ty) -> &mut Self {
-                    Register::set_bits(self, (Register::get_bits(self) & !(1 << #offset))
-                        | ((if value {1} else {0}) << #offset)
-                    );
+                    value_write!(self, #mask, #offset, value as <Self as Register>::ValueType);
                     self
                 }
 
@@ -211,9 +209,7 @@ fn render_write(field: &_Field, value_type: &Ident, value_size: u32) -> Result<T
                 #[doc = #description]
                 #[inline]
                 pub fn #method_name(&mut self, value: #ty) -> &mut Self {
-                    Register::set_bits(self, (Register::get_bits(self) & !(#mask << #offset))
-                        | (((value as <Self as Register>::ValueType) & #mask) << #offset)
-                    );
+                    value_write!(self, #mask, #offset, value as <Self as Register>::ValueType);
                     self
                 }
             })
@@ -228,9 +224,7 @@ fn render_write(field: &_Field, value_type: &Ident, value_size: u32) -> Result<T
                 #[doc = #description]
                 #[inline]
                 pub fn #method_name(&mut self, value: #ty) -> Result<&mut Self, <<Self as Register>::ValueType as TryFrom<#ty>>::Error> {
-                    Register::set_bits(self, (Register::get_bits(self) & !(#mask << #offset))
-                        | ((<<Self as Register>::ValueType as TryFrom<#ty>>::try_from(value)? & #mask) << #offset)
-                    );
+                    value_write!(self, #mask, #offset, <<Self as Register>::ValueType as TryFrom<#ty>>::try_from(value)?);
                     Ok(self)
                 }
             })
