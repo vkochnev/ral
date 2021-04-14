@@ -2,16 +2,18 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 use indoc::{formatdoc, writedoc};
-use proc_macro2::{Ident, Span};
 use svd_parser::{Access, Field, Register, RegisterProperties};
 
 use crate::field::_Field;
+use crate::overrides::RegisterOverrides;
 use crate::utils::{array_names, build_ident, indent};
 
 #[derive(Clone)]
 pub(super) struct _Register<'a> {
-    pub(super) name: Ident,
-    description: &'a Option<String>,
+    pub(super) name: String,
+    description: Option<&'a String>,
+    pub(super) features: Option<&'a Vec<String>>,
+    pub(super) uses: Option<&'a Vec<String>>,
     offset: u64,
     value_size: u32,
     reset_mask: u64,
@@ -24,19 +26,17 @@ impl<'a> _Register<'a> {
         register: &'a Register,
         registers: &HashMap<String, &'a Register>,
         defaults: RegisterProperties,
+        overrides: Option<&'a HashMap<String, RegisterOverrides>>,
     ) -> Vec<_Register<'a>> {
-        let _register = _Register::build(register, registers, defaults);
+        let _register = _Register::build(register, registers, defaults, overrides);
         match register {
-            Register::Single(_) => vec![_Register {
-                name: build_ident(register.name.to_lowercase()),
-                .._register
-            }],
+            Register::Single(_) => vec![_register],
             Register::Array(_, dim) => {
                 let mut registers = Vec::new();
                 let mut offset = _register.offset;
-                for name in array_names(&register.name, dim) {
+                for name in array_names(&_register.name, dim) {
                     registers.push(_Register {
-                        name: build_ident(name),
+                        name,
                         offset,
                         fields: _register.fields.clone(),
                         .._register
@@ -52,19 +52,24 @@ impl<'a> _Register<'a> {
         register: &'a Register,
         registers: &HashMap<String, &'a Register>,
         defaults: RegisterProperties,
+        overrides: Option<&'a HashMap<String, RegisterOverrides>>,
     ) -> _Register<'a> {
+        let overrides = register.overrides(overrides);
         let access = register.access(registers).or(defaults.access);
         let children = register
             .fields(registers)
             .expect("Register should not be empty");
         let fields = Self::collect_fields(children);
+        let field_overrides = overrides.and_then(|overrides| overrides.fields.as_ref());
         let child_fields = children
             .iter()
-            .flat_map(|field| _Field::build_all(field, &fields, access))
+            .flat_map(|field| _Field::build_all(field, &fields, access, field_overrides))
             .collect();
         _Register {
-            name: Ident::new("_", Span::call_site()), // placeholder
-            description: &register.description,
+            name: register.name(overrides),
+            description: register.description(overrides),
+            features: overrides.and_then(|overrides| overrides.features.as_ref()),
+            uses: overrides.and_then(|overrides| overrides.uses.as_ref()),
             offset: register.address_offset as u64,
             value_size: register
                 .size(registers)
@@ -110,6 +115,15 @@ impl<'a> Display for _Register<'a> {
             )?;
         }
         write!(f, "use ral::register;\n\nregister! {{\n")?;
+        if let Some(uses) = self.uses {
+            for use_item in uses {
+                f.write_str(&indent(
+                    format!("use {use_item};\n", use_item = use_item),
+                    1,
+                ))?;
+            }
+            f.write_str("\n")?;
+        }
         if let Some(description) = self.description {
             f.write_str(&indent(
                 format!("#[doc = \"{description}\"]\n", description = description),
@@ -126,7 +140,7 @@ impl<'a> Display for _Register<'a> {
                     reset_value: {reset_value:#X},
                     fields: {{
                 ",
-                name = self.name,
+                name = build_ident(&self.name),
                 offset = self.offset,
                 value_size = self.value_size,
                 reset_mask = self.reset_mask,
@@ -148,6 +162,10 @@ impl<'a> Display for _Register<'a> {
 }
 
 trait DerivedRegister<'a> {
+    fn name(&self, overrides: Option<&'a RegisterOverrides>) -> String;
+
+    fn description(&'a self, overrides: Option<&'a RegisterOverrides>) -> Option<&'a String>;
+
     fn size(&self, registers: &HashMap<String, &'a Register>) -> Option<u32>;
 
     fn reset_mask(&self, registers: &HashMap<String, &'a Register>) -> Option<u64>;
@@ -157,9 +175,28 @@ trait DerivedRegister<'a> {
     fn access(&self, registers: &HashMap<String, &'a Register>) -> Option<Access>;
 
     fn fields(&'a self, registers: &HashMap<String, &'a Register>) -> Option<&'a Vec<Field>>;
+
+    fn overrides(
+        &'a self,
+        overrides: Option<&'a HashMap<String, RegisterOverrides>>,
+    ) -> Option<&'a RegisterOverrides>;
 }
 
 impl<'a> DerivedRegister<'a> for Register {
+    fn name(&self, overrides: Option<&'a RegisterOverrides>) -> String {
+        build_ident(
+            overrides
+                .and_then(|overrides| overrides.name.as_ref())
+                .unwrap_or(&self.name),
+        )
+    }
+
+    fn description(&'a self, overrides: Option<&'a RegisterOverrides>) -> Option<&'a String> {
+        overrides
+            .and_then(|overrides| overrides.description.as_ref())
+            .or(self.description.as_ref())
+    }
+
     fn size(&self, registers: &HashMap<String, &'a Register>) -> Option<u32> {
         let derived = self
             .derived_from
@@ -203,5 +240,12 @@ impl<'a> DerivedRegister<'a> for Register {
             .and_then(|name| registers.get(name))
             .and_then(|&r| r.fields(registers));
         self.fields.as_ref().or(derived)
+    }
+
+    fn overrides(
+        &'a self,
+        overrides: Option<&'a HashMap<String, RegisterOverrides>>,
+    ) -> Option<&'a RegisterOverrides> {
+        overrides!(self, overrides)
     }
 }

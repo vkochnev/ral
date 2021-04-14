@@ -1,17 +1,17 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result};
 
-use indoc::writedoc;
-use proc_macro2::Ident;
 use svd_parser::{Cluster, Device, Peripheral, Register, RegisterCluster, RegisterProperties};
 
 use crate::cluster::_Cluster;
+use crate::overrides::{DeviceOverrides, PeripheralOverrides};
 use crate::register::_Register;
 use crate::utils::{array_names, build_children, build_ident, merge_defaults};
 
 pub(super) struct _Peripheral<'a> {
-    pub(super) name: Ident,
-    description: &'a Option<String>,
+    pub(super) name: String,
+    description: Option<&'a String>,
+    features: Option<&'a Vec<String>>,
     base_address: u64,
     pub(super) clusters: Vec<_Cluster<'a>>,
     pub(super) registers: Vec<_Register<'a>>,
@@ -22,7 +22,9 @@ impl<'a> _Peripheral<'a> {
         peripheral: &'a Peripheral,
         peripherals: &HashMap<String, &'a Peripheral>,
         defaults: RegisterProperties,
+        overrides: Option<&'a HashMap<String, PeripheralOverrides>>,
     ) -> _Peripheral<'a> {
+        let overrides = peripheral.overrides(overrides);
         let children = peripheral
             .registers(peripherals)
             .expect("There should be no empty peripherals");
@@ -34,10 +36,20 @@ impl<'a> _Peripheral<'a> {
             peripheral.default_register_properties(peripherals),
             defaults,
         );
-        let (clusters, registers) = build_children(children, &clusters, &registers, defaults);
+        let cluster_overrides = overrides.and_then(|overrides| overrides.clusters.as_ref());
+        let register_overrides = overrides.and_then(|overrides| overrides.registers.as_ref());
+        let (clusters, registers) = build_children(
+            children,
+            &clusters,
+            &registers,
+            defaults,
+            cluster_overrides,
+            register_overrides,
+        );
         _Peripheral {
-            name: build_ident(peripheral.name.to_lowercase()),
-            description: &peripheral.description,
+            name: peripheral.name(overrides),
+            description: peripheral.description(overrides),
+            features: overrides.and_then(|overrides| overrides.features.as_ref()),
             base_address: peripheral.base_address,
             clusters,
             registers,
@@ -93,23 +105,7 @@ impl<'a> Display for _Peripheral<'a> {
             "const BASE_ADDRESS: usize = {base_address:#X};\n\n",
             base_address = self.base_address
         )?;
-        let mut children = Vec::with_capacity(self.clusters.len() + self.registers.len());
-        for cluster in &self.clusters {
-            children.push(&cluster.name);
-        }
-        for register in &self.registers {
-            children.push(&register.name);
-        }
-        for child in children {
-            writedoc!(
-                f,
-                "
-                mod {module};
-                pub use {module}::*;
-                ",
-                module = child
-            )?;
-        }
+        write_children!(self, f);
         Ok(())
     }
 }
@@ -117,7 +113,11 @@ impl<'a> Display for _Peripheral<'a> {
 pub(super) struct _Peripherals<'a>(Vec<_Peripheral<'a>>);
 
 impl<'a> _Peripherals<'a> {
-    pub(super) fn build(device: &'a Device) -> _Peripherals<'a> {
+    pub(super) fn build(
+        device: &'a Device,
+        overrides: Option<&'a DeviceOverrides>,
+    ) -> _Peripherals<'a> {
+        let overrides = overrides.and_then(|overrides| overrides.peripherals.as_ref());
         let mut peripherals = HashMap::<String, &'a Peripheral>::new();
         for peripheral in &device.peripherals {
             peripherals.insert(peripheral.name.clone(), peripheral);
@@ -125,7 +125,12 @@ impl<'a> _Peripherals<'a> {
         let defaults = device.default_register_properties;
         let mut collected = Vec::new();
         for peripheral in &device.peripherals {
-            collected.push(_Peripheral::build(&peripheral, &peripherals, defaults));
+            collected.push(_Peripheral::build(
+                &peripheral,
+                &peripherals,
+                defaults,
+                overrides,
+            ));
         }
         _Peripherals(collected)
     }
@@ -134,6 +139,9 @@ impl<'a> _Peripherals<'a> {
 impl<'a> Display for _Peripherals<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         for peripheral in &self.0 {
+            if let Some(packages_cfg) = features_cfg!(peripheral) {
+                write!(f, "{}", packages_cfg)?;
+            }
             write!(f, "pub mod {};\n", peripheral.name)?;
         }
         Ok(())
@@ -150,6 +158,10 @@ impl<'a> IntoIterator for _Peripherals<'a> {
 }
 
 trait DerivedPeripheral<'a> {
+    fn name(&self, overrides: Option<&'a PeripheralOverrides>) -> String;
+
+    fn description(&'a self, overrides: Option<&'a PeripheralOverrides>) -> Option<&'a String>;
+
     fn default_register_properties(
         &'a self,
         peripherals: &HashMap<String, &'a Peripheral>,
@@ -159,9 +171,28 @@ trait DerivedPeripheral<'a> {
         &'a self,
         peripherals: &HashMap<String, &'a Peripheral>,
     ) -> Option<&'a Vec<RegisterCluster>>;
+
+    fn overrides(
+        &'a self,
+        overrides: Option<&'a HashMap<String, PeripheralOverrides>>,
+    ) -> Option<&'a PeripheralOverrides>;
 }
 
 impl<'a> DerivedPeripheral<'a> for Peripheral {
+    fn name(&self, overrides: Option<&'a PeripheralOverrides>) -> String {
+        build_ident(
+            overrides
+                .and_then(|overrides| overrides.name.as_ref())
+                .unwrap_or(&self.name),
+        )
+    }
+
+    fn description(&'a self, overrides: Option<&'a PeripheralOverrides>) -> Option<&'a String> {
+        overrides
+            .and_then(|overrides| overrides.description.as_ref())
+            .or(self.description.as_ref())
+    }
+
     fn default_register_properties(
         &'a self,
         peripherals: &HashMap<String, &'a Peripheral>,
@@ -184,5 +215,12 @@ impl<'a> DerivedPeripheral<'a> for Peripheral {
             .and_then(|name| peripherals.get(name))
             .and_then(|&p| p.registers(peripherals));
         self.registers.as_ref().or(derived)
+    }
+
+    fn overrides(
+        &'a self,
+        overrides: Option<&'a HashMap<String, PeripheralOverrides>>,
+    ) -> Option<&'a PeripheralOverrides> {
+        overrides!(self, overrides)
     }
 }

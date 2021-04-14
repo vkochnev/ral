@@ -2,9 +2,9 @@
 
 use ral_macro::register;
 
-use crate::cpu32::types::EnumType;
-
 register! {
+    use crate::cpu32::types::EnumType;
+
     #[doc = "0x10 - Either register"]
     either {
         offset: 0x00,

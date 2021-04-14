@@ -4,10 +4,18 @@ use std::path::Path;
 
 use crate::cluster::_Cluster;
 use crate::device::_Device;
+use crate::package::_Package;
 use crate::peripheral::{_Peripheral, _Peripherals};
 use crate::register::_Register;
 
-pub(super) fn generate_sources(project_dir: &Path, device: _Device) -> Result<()> {
+pub(super) fn generate_package(project_dir: &Path, package: _Package) -> Result<()> {
+    create_dir(project_dir)?;
+    write(project_dir.join("Cargo.toml"), package.to_string())?;
+
+    generate_sources(project_dir, package.device)
+}
+
+fn generate_sources(project_dir: &Path, device: _Device) -> Result<()> {
     let src_dir = project_dir.join("src");
     create_dir(&src_dir)?;
 

@@ -7,11 +7,15 @@ use syn::{Ident, LitInt};
 
 use crate::field::_Field;
 use crate::field_type::_FieldType;
-use crate::register::_Register;
+use crate::register::{_Register, _RegisterWithUses};
 use crate::spanned::_Spanned;
+use crate::uses::_Uses;
 
-pub(super) fn render_register_with_uses(register: _Register) -> Result<TokenStream> {
-    let uses = render_uses();
+pub(super) fn render_register_with_uses(
+    register_with_uses: _RegisterWithUses,
+) -> Result<TokenStream> {
+    let _RegisterWithUses(uses, register) = register_with_uses;
+    let uses = render_uses(uses);
     let definition = render_register(register)?;
     Ok(quote! {
         #uses
@@ -20,13 +24,16 @@ pub(super) fn render_register_with_uses(register: _Register) -> Result<TokenStre
     })
 }
 
-pub(super) fn render_uses() -> TokenStream {
+pub(super) fn render_uses(uses: _Uses) -> TokenStream {
+    let _Uses(uses) = uses;
     quote! {
         use core::sync::atomic::AtomicPtr;
 
         use core::convert::TryFrom;
 
         use ral::{borrow_register, init_register, return_register, value_read, value_write, R, Register, VolatileCell};
+
+        #(#uses)*
     }
 }
 

@@ -5,6 +5,8 @@
 //! Internally generates register description backed by [ral](https://docs.rs/ral)
 //! ```
 //! register! {
+//!     use crate_name::types::CustomType;
+//!
 //!     #[doc = "Register description"]
 //!     reg0 { // Register name
 //!         offset: 0x8, // Register offset in enclosing peripheral
@@ -48,6 +50,7 @@
 //!     borrow_register, init_register, return_register, value_read, value_write, R, Register,
 //!     VolatileCell,
 //! };
+//! use crate_name::types::CustomType;
 //! const REGISTER: AtomicPtr<VolatileCell<<Reg0 as Register>::ValueType>> = AtomicPtr::new(
 //!     (super::BASE_ADDRESS /* Enclosing peripheral/cluster base address */ + 0x00 /* offset */) as *mut VolatileCell<<Reg0 as Register>::ValueType>,
 //! );
@@ -280,7 +283,8 @@ use proc_macro::TokenStream;
 
 use syn::parse_macro_input;
 
-use crate::register::_Register;
+use crate::register::{_Register, _RegisterWithUses};
+use crate::uses::_Uses;
 
 mod field;
 mod field_type;
@@ -288,19 +292,20 @@ mod parse;
 mod register;
 mod render;
 mod spanned;
+mod uses;
 
 /// Macro expanding into register definition and required uses
 #[proc_macro]
 pub fn register(item: TokenStream) -> TokenStream {
-    render::render_register_with_uses(parse_macro_input!(item as _Register))
+    render::render_register_with_uses(parse_macro_input!(item as _RegisterWithUses))
         .map(TokenStream::from)
         .unwrap_or_else(|err| TokenStream::from(err.to_compile_error()))
 }
 
 /// Macro expanding into required uses, might be useful when multiple registers to be defined in the same module
 #[proc_macro]
-pub fn register_uses(_: TokenStream) -> TokenStream {
-    TokenStream::from(render::render_uses())
+pub fn register_uses(item: TokenStream) -> TokenStream {
+    TokenStream::from(render::render_uses(parse_macro_input!(item as _Uses)))
 }
 
 /// Macro expanding into register definition, might be useful when multiple registers to be defined in the same module

@@ -6,6 +6,17 @@ use syn::{braced, Attribute, Ident, LitInt, LitStr};
 use crate::field::_Fields;
 use crate::parse::{attrs_to_meta_map, get_meta};
 use crate::spanned::_Spanned;
+use crate::uses::_Uses;
+
+pub(super) struct _RegisterWithUses(pub(super) _Uses, pub(super) _Register);
+
+impl Parse for _RegisterWithUses {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let uses = input.parse::<_Uses>()?;
+        let register = input.parse::<_Register>()?;
+        Ok(_RegisterWithUses(uses, register))
+    }
+}
 
 pub(super) struct _Register {
     pub(super) name: Ident,
