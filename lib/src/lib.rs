@@ -101,18 +101,22 @@ pub trait Register {
 
     /// Reset value
     const RESET_VALUE: Self::ValueType;
+}
 
+pub trait ReadableRegister: Register {
     /// Get value of the register as raw bits
     fn get_bits(&self) -> Self::ValueType;
 
+    /// Loads value from the register
+    fn read(&mut self) -> &mut Self::RegisterType;
+}
+
+pub trait WritableRegister: Register {
     /// Set value of the register as raw bits
     fn set_bits(&mut self, bits: Self::ValueType) -> &mut Self::RegisterType;
 
     /// Reset value of the register to default
     fn reset(&mut self) -> &mut Self::RegisterType;
-
-    /// Loads value from the register
-    fn read(&mut self) -> &mut Self::RegisterType;
 
     /// Writes value to the register
     fn write(&mut self) -> &mut Self::RegisterType;
@@ -122,7 +126,7 @@ pub trait Register {
 #[macro_export]
 macro_rules! value_read {
     ($r: expr, $m: expr, $o: expr) => {
-        ((Register::get_bits($r) >> $o) & $m)
+        (($r.0.get_bits() >> $o) & $m)
     };
 }
 
@@ -130,10 +134,7 @@ macro_rules! value_read {
 #[macro_export]
 macro_rules! value_write {
     ($r: expr, $m: expr, $o: expr, $v: expr) => {
-        Register::set_bits(
-            $r,
-            (Register::get_bits($r) & !($m << $o)) | ((($v) & $m) << $o),
-        );
+        $r.0.set_bits(($r.0.get_bits() & !($m << $o)) | ((($v) & $m) << $o));
     };
 }
 
@@ -183,11 +184,20 @@ mod tests {
         const RESET_MASK: Self::ValueType = 0xF3FF_FFFF;
 
         const RESET_VALUE: Self::ValueType = 0x2800_0000;
+    }
 
+    impl ReadableRegister for TestR {
         fn get_bits(&self) -> Self::ValueType {
             self.0.get_bits()
         }
 
+        fn read(&mut self) -> &mut Self::RegisterType {
+            self.0.read();
+            self
+        }
+    }
+
+    impl WritableRegister for TestR {
         fn set_bits(&mut self, bits: Self::ValueType) -> &mut Self::RegisterType {
             self.0.set_bits(bits);
             self
@@ -195,11 +205,6 @@ mod tests {
 
         fn reset(&mut self) -> &mut Self::RegisterType {
             self.set_bits(Self::RESET_VALUE)
-        }
-
-        fn read(&mut self) -> &mut Self::RegisterType {
-            self.0.read();
-            self
         }
 
         fn write(&mut self) -> &mut Self::RegisterType {

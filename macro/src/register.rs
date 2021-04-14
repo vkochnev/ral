@@ -20,11 +20,12 @@ impl Parse for _RegisterWithUses {
 
 pub(super) struct _Register {
     pub(super) name: Ident,
-    pub(super) description: LitStr,
+    pub(super) description: Option<LitStr>,
     pub(super) offset: _Spanned<u32>,
     pub(super) value_size: _Spanned<u32>,
     pub(super) reset_mask: LitInt,
     pub(super) reset_value: LitInt,
+    pub(super) access: Option<LitStr>,
     pub(super) fields: _Fields,
 }
 
@@ -36,7 +37,8 @@ impl Parse for _Register {
         let _ = braced!(content in input);
         attrs.extend(content.call(Attribute::parse_inner)?);
         let mut attrs = attrs_to_meta_map(attrs)?;
-        let description = get_meta("doc", &mut attrs, name.span())?;
+        let description = get_meta("doc", &mut attrs, name.span()).ok();
+        let access = get_meta("access", &mut attrs, name.span()).ok();
         if !attrs.is_empty() {
             Err(syn::Error::new(
                 name.span(),
@@ -59,10 +61,7 @@ impl Parse for _Register {
             name.span(),
             format!("Register reset value is not specified"),
         ));
-        let mut fields: Result<_Fields> = Err(syn::Error::new(
-            name.span(),
-            format!("Register fields is not specified"),
-        ));
+        let mut fields: Result<_Fields> = Ok(_Fields::empty());
         while !content.is_empty() {
             let field_name: Ident = content.parse()?;
             let _: Colon = content.parse()?;
@@ -84,7 +83,7 @@ impl Parse for _Register {
         }
         let value_size = _Spanned::from(value_size).and_then(validate_value_size)?;
         let fields = fields?;
-        fields.validate(value_size.value, name.span())?;
+        fields.validate(value_size.value)?;
 
         Ok(_Register {
             name,
@@ -93,6 +92,7 @@ impl Parse for _Register {
             value_size,
             reset_mask: reset_mask?,
             reset_value: reset_value?,
+            access,
             fields,
         })
     }

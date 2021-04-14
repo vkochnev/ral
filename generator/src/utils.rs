@@ -61,7 +61,11 @@ pub(super) fn array_names(name: &String, dim: &DimElement) -> Vec<String> {
             .collect()
         })
         .iter()
-        .map(|index| name.replace("[%s]", index).to_lowercase())
+        .map(|index| {
+            name.replace("[%s]", index)
+                .replace("%s", index)
+                .to_lowercase()
+        })
         .collect()
 }
 
@@ -139,23 +143,41 @@ macro_rules! features_cfg {
 
 macro_rules! write_children {
     ($s: ident, $f: ident) => {
-        let mut children = Vec::with_capacity($s.clusters.len() + $s.registers.len());
         for cluster in &$s.clusters {
-            children.push((&cluster.name, features_cfg!(cluster)));
+            if let Some(features_cfg) = features_cfg!(cluster) {
+                write!($f, "{}", features_cfg)?;
+            }
+            write!($f, "pub mod {module};\n", module = &cluster.name)?;
         }
         for register in &$s.registers {
-            children.push((&register.name, features_cfg!(register)));
+            let features_cfg = features_cfg!(register);
+            if let Some(features_cfg) = &features_cfg {
+                write!($f, "{}", features_cfg)?;
+            }
+            write!($f, "mod {module};\n", module = &register.name)?;
+            if let Some(features_cfg) = &features_cfg {
+                write!($f, "{}", features_cfg)?;
+            }
+            write!($f, "pub use {module}::*;\n", module = &register.name)?;
         }
-        for child in children {
-            let (module, cfg) = child;
-            if let Some(features_cfg) = &cfg {
-                write!($f, "{}", features_cfg)?;
-            }
-            write!($f, "mod {module};\n", module = module)?;
-            if let Some(features_cfg) = &cfg {
-                write!($f, "{}", features_cfg)?;
-            }
-            write!($f, "pub use {module}::*;\n", module = module)?;
+    };
+}
+macro_rules! write_access {
+    ($f:ident, $a:expr, $i: expr) => {
+        let access = $a.and_then(|access| match access {
+            Access::ReadOnly => Some("read-only"),
+            Access::WriteOnly => Some("write-only"),
+            Access::ReadWrite => None,
+            Access::WriteOnce => Some("writeOnce"),
+            Access::ReadWriteOnce => Some("read-writeOnce"),
+        });
+        if let Some(access) = access {
+            write!(
+                $f,
+                "{indent}#[access = \"{access}\"]\n",
+                access = access,
+                indent = $i
+            )?;
         }
     };
 }

@@ -3,9 +3,9 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::parse::Result;
 use syn::spanned::Spanned;
-use syn::{Ident, LitInt};
+use syn::{Ident, LitInt, LitStr};
 
-use crate::field::_Field;
+use crate::field::{_Field, _Fields};
 use crate::field_type::_FieldType;
 use crate::register::{_Register, _RegisterWithUses};
 use crate::spanned::_Spanned;
@@ -31,7 +31,7 @@ pub(super) fn render_uses(uses: _Uses) -> TokenStream {
 
         use core::convert::TryFrom;
 
-        use ral::{borrow_register, init_register, return_register, value_read, value_write, R, Register, VolatileCell};
+        use ral::{borrow_register, init_register, return_register, value_read, value_write, R, Register, ReadableRegister, VolatileCell, WritableRegister};
 
         #(#uses)*
     }
@@ -44,25 +44,26 @@ pub(super) fn render_register(register: _Register) -> Result<TokenStream> {
         span = register.name.span()
     );
     let method_name = register.name;
-    let description = register.description;
+    let description = render_description(&register.description)?;
     let offset = register.offset;
     let value_size = register.value_size;
     let value_type = format_ident!("u{}", value_size.value, span = value_size.span());
     let reset_mask = register.reset_mask;
     let value_reset = register.reset_value;
-    let mut methods = Vec::<TokenStream>::new();
-    let methods_iter = register
-        .fields
-        .into_iter()
-        .map(|field| render_field(field, &value_type, value_size.value));
-    for method in methods_iter {
-        methods.push(method?);
-    }
+    let access = register.access.as_ref();
+    let register_impl = render_impl(
+        register.fields,
+        &name,
+        &value_type,
+        value_size.value,
+        access,
+    )?;
+    let access = render_access(&name, access)?;
     Ok(quote! {
         const REGISTER: AtomicPtr<VolatileCell<<#name as Register>::ValueType>> =
             init_register!(super::BASE_ADDRESS + #offset, #name);
 
-        #[doc = #description]
+        #description
         pub fn #method_name() -> Option<#name> {
             borrow_register(&REGISTER).map(#name)
         }
@@ -84,11 +85,61 @@ pub(super) fn render_register(register: _Register) -> Result<TokenStream> {
             const RESET_MASK: Self::ValueType = #reset_mask;
 
             const RESET_VALUE: Self::ValueType = #value_reset;
+        }
 
+        #access
+
+        #register_impl
+    })
+}
+
+fn render_description(description: &Option<LitStr>) -> Result<TokenStream> {
+    if let Some(description) = description {
+        Ok(quote! {
+            #[doc = #description]
+        })
+    } else {
+        Ok(TokenStream::new())
+    }
+}
+
+fn render_access(name: &Ident, access: Option<&LitStr>) -> Result<TokenStream> {
+    let access = access
+        .map(|lit_str| lit_str.value())
+        .unwrap_or(String::from("read-write"));
+    match access.as_str() {
+        "write-only" | "writeOnce" => render_writable(name),
+        "read-only" => render_readable(name),
+        _ => {
+            let readable = render_readable(name)?;
+            let writable = render_writable(name)?;
+            Ok(quote! {
+                #readable
+
+                #writable
+            })
+        }
+    }
+}
+
+fn render_readable(name: &Ident) -> Result<TokenStream> {
+    Ok(quote! {
+        impl ReadableRegister for #name {
             fn get_bits(&self) -> Self::ValueType {
                 self.0.get_bits()
             }
 
+            fn read(&mut self) -> &mut Self::RegisterType {
+                self.0.read();
+                self
+            }
+        }
+    })
+}
+
+fn render_writable(name: &Ident) -> Result<TokenStream> {
+    Ok(quote! {
+        impl WritableRegister for #name {
             fn set_bits(&mut self, bits: Self::ValueType) -> &mut Self::RegisterType {
                 self.0.set_bits(bits);
                 self
@@ -98,27 +149,49 @@ pub(super) fn render_register(register: _Register) -> Result<TokenStream> {
                 self.set_bits(Self::RESET_VALUE)
             }
 
-            fn read(&mut self) -> &mut Self::RegisterType {
-                self.0.read();
-                self
-            }
-
             fn write(&mut self) -> &mut Self::RegisterType {
                 self.0.write();
                 self
             }
         }
+    })
+}
 
-        impl #name {
-            #(#methods)*
+fn render_impl(
+    fields: _Fields,
+    name: &Ident,
+    value_type: &Ident,
+    value_size: u32,
+    access: Option<&LitStr>,
+) -> Result<TokenStream> {
+    let mut methods = Vec::<TokenStream>::new();
+    let methods_iter = fields
+        .into_iter()
+        .map(|field| render_field(field, &value_type, value_size, access));
+    for method in methods_iter {
+        methods.push(method?);
+    }
+    Ok(if methods.is_empty() {
+        TokenStream::new()
+    } else {
+        quote! {
+            impl #name {
+                #(#methods)*
+            }
         }
     })
 }
 
-fn render_field(field: _Field, value_type: &Ident, value_size: u32) -> Result<TokenStream> {
+fn render_field(
+    field: _Field,
+    value_type: &Ident,
+    value_size: u32,
+    default_access: Option<&LitStr>,
+) -> Result<TokenStream> {
     let access = field
         .access
         .as_ref()
+        .or(default_access)
         .map(|lit_str| lit_str.value())
         .unwrap_or(String::from("read-write"));
     match access.as_str() {
@@ -137,14 +210,14 @@ fn render_field(field: _Field, value_type: &Ident, value_size: u32) -> Result<To
 }
 
 fn render_read(field: &_Field, value_type: &Ident, value_size: u32) -> Result<TokenStream> {
-    let description = &field.description;
+    let description = render_description(&field.description)?;
     let offset = &field.offset;
     let mask = build_mask(&field.width, value_size);
     match &field.ty {
         _FieldType::Bool(ty) => {
             let method_name = format_ident!("is_{}_set", field.name);
             Ok(quote! {
-                #[doc = #description]
+                #description
                 #[inline]
                 pub fn #method_name(&self) -> #ty {
                     value_read!(self, #mask, #offset) == 1
@@ -154,7 +227,7 @@ fn render_read(field: &_Field, value_type: &Ident, value_size: u32) -> Result<To
         _FieldType::Primitive(ty) => {
             let method_name = format_ident!("get_{}", field.name);
             Ok(quote! {
-                #[doc = #description]
+                #description
                 #[inline]
                 pub fn #method_name(&self) -> #ty {
                     value_read!(self, #mask, #offset) as #ty
@@ -168,7 +241,7 @@ fn render_read(field: &_Field, value_type: &Ident, value_size: u32) -> Result<To
             };
             let method_name = format_ident!("get_{}", field.name);
             Ok(quote! {
-                #[doc = #description]
+                #description
                 #[inline]
                 pub fn #method_name(&self) -> Result<#ty, <#ty as TryFrom<<Self as Register>::ValueType>>::Error> {
                     <#ty as TryFrom<<Self as Register>::ValueType>>::try_from(value_read!(self, #mask, #offset))
@@ -179,7 +252,7 @@ fn render_read(field: &_Field, value_type: &Ident, value_size: u32) -> Result<To
 }
 
 fn render_write(field: &_Field, value_type: &Ident, value_size: u32) -> Result<TokenStream> {
-    let description = &field.description;
+    let description = render_description(&field.description)?;
     let offset = &field.offset;
     let mask = build_mask(&field.width, value_size);
     match &field.ty {
@@ -188,20 +261,20 @@ fn render_write(field: &_Field, value_type: &Ident, value_size: u32) -> Result<T
             let method_name_set = format_ident!("set_{}", field.name);
             let method_name_unset = format_ident!("unset_{}", field.name);
             Ok(quote! {
-                #[doc = #description]
+                #description
                 #[inline]
                 pub fn #method_name(&mut self, value: #ty) -> &mut Self {
                     value_write!(self, #mask, #offset, value as <Self as Register>::ValueType);
                     self
                 }
 
-                #[doc = #description]
+                #description
                 #[inline]
                 pub fn #method_name_set(&mut self) -> &mut Self {
                     self.#method_name(true)
                 }
 
-                #[doc = #description]
+                #description
                 #[inline]
                 pub fn #method_name_unset(&mut self) -> &mut Self {
                     self.#method_name(false)
@@ -211,7 +284,7 @@ fn render_write(field: &_Field, value_type: &Ident, value_size: u32) -> Result<T
         _FieldType::Primitive(ty) => {
             let method_name = format_ident!("set_{}", field.name);
             Ok(quote! {
-                #[doc = #description]
+                #description
                 #[inline]
                 pub fn #method_name(&mut self, value: #ty) -> &mut Self {
                     value_write!(self, #mask, #offset, value as <Self as Register>::ValueType);
@@ -226,7 +299,7 @@ fn render_write(field: &_Field, value_type: &Ident, value_size: u32) -> Result<T
             };
             let method_name = format_ident!("set_{}", field.name);
             Ok(quote! {
-                #[doc = #description]
+                #description
                 #[inline]
                 pub fn #method_name(&mut self, value: #ty) -> Result<&mut Self, <<Self as Register>::ValueType as TryFrom<#ty>>::Error> {
                     value_write!(self, #mask, #offset, <<Self as Register>::ValueType as TryFrom<#ty>>::try_from(value)?);

@@ -6,8 +6,8 @@ use quote::ToTokens;
 use syn::{LitInt, Result};
 
 pub(super) struct _Spanned<T> {
-    pub(crate) value: T,
-    pub(crate) lit: LitInt,
+    pub(super) value: T,
+    pub(super) lit: LitInt,
 }
 
 impl<T> ToTokens for _Spanned<T> {
@@ -20,7 +20,7 @@ impl<T: FromStr> _Spanned<T>
 where
     <T as FromStr>::Err: Display,
 {
-    pub(crate) fn from(lit: Result<LitInt>) -> Result<_Spanned<T>> {
+    pub(super) fn from(lit: Result<LitInt>) -> Result<_Spanned<T>> {
         let lit = lit?;
 
         T::from_str(lit.base10_digits())

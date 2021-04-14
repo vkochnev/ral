@@ -12,13 +12,14 @@ use crate::utils::{array_names, build_ident, indent};
 pub(super) struct _Register<'a> {
     pub(super) name: String,
     description: Option<&'a String>,
+    access: Option<Access>,
     pub(super) features: Option<&'a Vec<String>>,
     pub(super) uses: Option<&'a Vec<String>>,
     offset: u64,
     value_size: u32,
     reset_mask: u64,
     reset_value: u64,
-    fields: Vec<_Field<'a>>,
+    fields: Option<Vec<_Field<'a>>>,
 }
 
 impl<'a> _Register<'a> {
@@ -56,18 +57,18 @@ impl<'a> _Register<'a> {
     ) -> _Register<'a> {
         let overrides = register.overrides(overrides);
         let access = register.access(registers).or(defaults.access);
-        let children = register
-            .fields(registers)
-            .expect("Register should not be empty");
-        let fields = Self::collect_fields(children);
-        let field_overrides = overrides.and_then(|overrides| overrides.fields.as_ref());
-        let child_fields = children
-            .iter()
-            .flat_map(|field| _Field::build_all(field, &fields, access, field_overrides))
-            .collect();
+        let fields = register.fields(registers).map(|children| {
+            let fields = Self::collect_fields(children);
+            let field_overrides = overrides.and_then(|overrides| overrides.fields.as_ref());
+            children
+                .iter()
+                .flat_map(|field| _Field::build_all(field, &fields, field_overrides))
+                .collect()
+        });
         _Register {
             name: register.name(overrides),
             description: register.description(overrides),
+            access,
             features: overrides.and_then(|overrides| overrides.features.as_ref()),
             uses: overrides.and_then(|overrides| overrides.uses.as_ref()),
             offset: register.address_offset as u64,
@@ -83,7 +84,7 @@ impl<'a> _Register<'a> {
                 .reset_value(registers)
                 .or(defaults.reset_value)
                 .expect("Default reset value must be specified"),
-            fields: child_fields,
+            fields,
         }
     }
 
@@ -130,6 +131,7 @@ impl<'a> Display for _Register<'a> {
                 1,
             ))?;
         }
+        write_access!(f, self.access, " ".repeat(4));
         f.write_str(&indent(
             formatdoc!(
                 "
@@ -138,7 +140,6 @@ impl<'a> Display for _Register<'a> {
                     value_size: {value_size},
                     reset_mask: {reset_mask:#X},
                     reset_value: {reset_value:#X},
-                    fields: {{
                 ",
                 name = build_ident(&self.name),
                 offset = self.offset,
@@ -148,13 +149,16 @@ impl<'a> Display for _Register<'a> {
             ),
             1,
         ))?;
-        for field in &self.fields {
-            write!(f, "{},\n", field)?;
+        if let Some(fields) = &self.fields {
+            f.write_str(&indent(String::from("fields: {\n"), 2))?;
+            for field in fields {
+                write!(f, "{},\n", field)?;
+            }
+            f.write_str(&indent(String::from("}\n"), 2))?;
         }
         writedoc!(
             f,
             "
-                    }}
                 }}
             }}"
         )

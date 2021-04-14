@@ -20,10 +20,9 @@ impl<'a> _Field<'a> {
     pub(super) fn build_all(
         field: &'a Field,
         fields: &HashMap<String, &Field>,
-        default_access: Option<Access>,
         overrides: Option<&'a HashMap<String, FieldOverrides>>,
     ) -> Vec<_Field<'a>> {
-        let _field = _Field::build(field, fields, default_access, overrides);
+        let _field = _Field::build(field, fields, overrides);
         match field {
             Field::Single(_) => vec![_field],
             Field::Array(_, dim) => {
@@ -45,7 +44,6 @@ impl<'a> _Field<'a> {
     pub(super) fn build(
         field: &'a Field,
         fields: &HashMap<String, &Field>,
-        default_access: Option<Access>,
         overrides: Option<&'a HashMap<String, FieldOverrides>>,
     ) -> _Field<'a> {
         let overrides = field.overrides(overrides);
@@ -56,7 +54,7 @@ impl<'a> _Field<'a> {
             description: field.description(overrides),
             offset: range.offset,
             width,
-            access: field.access(fields).or(default_access),
+            access: field.access(fields),
             ty: field.ty(overrides),
         }
     }
@@ -73,21 +71,7 @@ impl<'a> Display for _Field<'a> {
                 indent = indent
             )?;
         }
-        let access = self.access.and_then(|access| match access {
-            Access::ReadOnly => Some("read-only"),
-            Access::WriteOnly => Some("write-only"),
-            Access::ReadWrite => None,
-            Access::WriteOnce => Some("writeOnce"),
-            Access::ReadWriteOnce => Some("read-writeOnce"),
-        });
-        if let Some(access) = access {
-            write!(
-                f,
-                "{indent}#[access = \"{access}\"]\n",
-                access = access,
-                indent = indent
-            )?;
-        }
+        write_access!(f, self.access, indent);
         write!(
             f,
             "{indent}{name}[{offset}:{width}] as {ty}",

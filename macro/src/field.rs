@@ -1,4 +1,4 @@
-use proc_macro2::{Ident, Span};
+use proc_macro2::Ident;
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::token::{As, Colon, Comma};
@@ -9,12 +9,12 @@ use crate::parse::{adjust_ident, attrs_to_meta_map, get_meta};
 use crate::spanned::_Spanned;
 
 pub(super) struct _Field {
-    pub(crate) name: Ident,
-    pub(crate) description: LitStr,
-    pub(crate) ty: _FieldType,
-    pub(crate) offset: _Spanned<u32>,
-    pub(crate) width: _Spanned<u32>,
-    pub(crate) access: Option<LitStr>,
+    pub(super) name: Ident,
+    pub(super) description: Option<LitStr>,
+    pub(super) ty: _FieldType,
+    pub(super) offset: _Spanned<u32>,
+    pub(super) width: _Spanned<u32>,
+    pub(super) access: Option<LitStr>,
 }
 
 impl _Field {
@@ -57,7 +57,7 @@ impl Parse for _Field {
         let attrs = input.call(Attribute::parse_outer)?;
         let mut attrs = attrs_to_meta_map(attrs)?;
         let name: Ident = adjust_ident(input.parse()?);
-        let description = get_meta("doc", &mut attrs, name.span())?;
+        let description = get_meta("doc", &mut attrs, name.span()).ok();
         let range;
         let _ = bracketed!(range in input);
         let offset = _Spanned::from(range.parse())?;
@@ -83,18 +83,18 @@ impl Parse for _Field {
     }
 }
 
-pub(super) struct _Fields(Vec<_Field>);
+pub(super) struct _Fields(Option<Vec<_Field>>);
 
 impl _Fields {
-    pub(super) fn validate(&self, value_size: u32, name_span: Span) -> Result<()> {
-        if self.0.is_empty() {
-            Err(syn::Error::new(
-                name_span,
-                "At least one field must be specified",
-            ))?
-        }
-        for field in &self.0 {
-            field.validate(value_size)?;
+    pub(super) fn empty() -> _Fields {
+        _Fields(None)
+    }
+
+    pub(super) fn validate(&self, value_size: u32) -> Result<()> {
+        if let Some(fields) = &self.0 {
+            for field in fields {
+                field.validate(value_size)?;
+            }
         }
         Ok(())
     }
@@ -105,7 +105,11 @@ impl IntoIterator for _Fields {
     type IntoIter = <Vec<_Field> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        if let Some(fields) = self.0 {
+            fields.into_iter()
+        } else {
+            Vec::<_Field>::new().into_iter()
+        }
     }
 }
 
@@ -121,6 +125,10 @@ impl Parse for _Fields {
             }
             let _: Comma = content.parse()?;
         }
-        Ok(_Fields(fields))
+        Ok(_Fields(if fields.is_empty() {
+            None
+        } else {
+            Some(fields)
+        }))
     }
 }
