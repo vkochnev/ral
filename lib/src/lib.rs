@@ -67,8 +67,8 @@ where
     pub fn write(&mut self) {
         unsafe {
             self.register.as_ref().set(
-                (!RegisterType::MASK & RegisterType::RESET_VALUE)
-                    | (RegisterType::MASK & self.bits),
+                (!RegisterType::RESET_MASK & RegisterType::RESET_VALUE)
+                    | (RegisterType::RESET_MASK & self.bits),
             );
         }
     }
@@ -97,7 +97,7 @@ pub trait Register {
         + BitOr<Output = Self::ValueType>;
 
     /// Reset mask
-    const MASK: Self::ValueType;
+    const RESET_MASK: Self::ValueType;
 
     /// Reset value
     const RESET_VALUE: Self::ValueType;
@@ -180,7 +180,7 @@ mod tests {
 
         type ValueType = u32;
 
-        const MASK: Self::ValueType = 0xF3FF_FFFF;
+        const RESET_MASK: Self::ValueType = 0xF3FF_FFFF;
 
         const RESET_VALUE: Self::ValueType = 0x2800_0000;
 

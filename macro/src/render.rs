@@ -81,7 +81,7 @@ pub(super) fn render_register(register: _Register) -> Result<TokenStream> {
 
             type ValueType = #value_type;
 
-            const MASK: Self::ValueType = #reset_mask;
+            const RESET_MASK: Self::ValueType = #reset_mask;
 
             const RESET_VALUE: Self::ValueType = #value_reset;
 
