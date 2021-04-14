@@ -103,6 +103,7 @@ pub trait Register {
     const RESET_VALUE: Self::ValueType;
 }
 
+/// Trait representing readable part of register, actual registers are to implement this
 pub trait ReadableRegister: Register {
     /// Get value of the register as raw bits
     fn get_bits(&self) -> Self::ValueType;
@@ -111,6 +112,7 @@ pub trait ReadableRegister: Register {
     fn read(&mut self) -> &mut Self::RegisterType;
 }
 
+/// Trait representing writable part of register, actual registers are to implement this
 pub trait WritableRegister: Register {
     /// Set value of the register as raw bits
     fn set_bits(&mut self, bits: Self::ValueType) -> &mut Self::RegisterType;

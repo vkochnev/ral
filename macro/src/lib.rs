@@ -5,15 +5,16 @@
 //! Internally generates register description backed by [ral](https://docs.rs/ral)
 //! ```
 //! register! {
-//!     use crate_name::types::CustomType;
+//!     use crate_name::types::CustomType; // Use expressions for custom types used in field declarations
 //!
-//!     #[doc = "Register description"]
+//!     #[access = "read-write"] // Optional register wide access specifier
+//!     #[doc = "Register description"] // Optional register description
 //!     reg0 { // Register name
 //!         offset: 0x8, // Register offset in enclosing peripheral
 //!         value_size: 32, // Register size, expected values are 8, 16, 32 or 64
 //!         reset_mask: 0xFFFFFFFF, // Reset mask
 //!         reset_value: 0x0, // Reset value
-//!         fields: { // Fields
+//!         fields: { // Optional fields
 //!             #[doc = "Bits 16:31 - Read-only u16 field"] // Each field can have a description
 //!             #[access = "read-only"] // Access specifier
 //!             field5[16:16] as u16, // Field specification `<name>[<offset>:<width>] as <type>`
@@ -68,11 +69,20 @@
 //! impl Register for Reg0 {
 //!     type RegisterType = Self;
 //!     type ValueType = u32;
-//!     const MASK: Self::ValueType = 0xFFFF_FFFF;
+//!     const RESET_MASK: Self::ValueType = 0xFFFF_FFFF;
 //!     const RESET_VALUE: Self::ValueType = 0x1234_0000;
+//! }
+//! impl ReadableRegister for Reg0 { // Will be added if register wide access allows read
 //!     fn get_bits(&self) -> Self::ValueType {
 //!         self.0.get_bits()
 //!     }
+//!
+//!     fn read(&mut self) -> &mut Self::RegisterType {
+//!         self.0.read();
+//!         self
+//!     }
+//! }
+//! impl WritableRegister for Reg0 { // Will be added if register wide access allows write
 //!     fn set_bits(&mut self, bits: Self::ValueType) -> &mut Self::RegisterType {
 //!         self.0.set_bits(bits);
 //!         self
@@ -80,32 +90,27 @@
 //!     fn reset(&mut self) -> &mut Self::RegisterType {
 //!         self.set_bits(Self::RESET_VALUE)
 //!     }
-//!     fn read(&mut self) -> &mut Self::RegisterType {
-//!         self.0.read();
-//!         self
-//!     }
 //!     fn write(&mut self) -> &mut Self::RegisterType {
 //!         self.0.write();
 //!         self
 //!     }
 //! }
-//! impl Reg0 {
+//! impl Reg0 { // Will be added if any fields specified
 //!     ///Bits 16:31 - Read-only u16 field
 //!     #[inline]
 //!     pub fn get_field5(&self) -> u16 {
 //!         value_read!(self, 0x0000FFFFu32, 16) as u16
 //!         // Will further expand into
-//!         // ((Register::get_bits(self) >> 16) & 0x0000FFFFu32) as u16
+//!         // ((self.0.get_bits() >> 16) & 0x0000FFFFu32) as u16
 //!     }
 //!     ///Bits 14:15 - Write-only field
 //!     #[inline]
 //!     pub fn set_field4(&mut self, value: u8) -> &mut Self {
 //!         value_write!(self, 0x00000003u32, 14, value as <Self as Register>::ValueType);
 //!         // Will further expand into
-//!         // Register::set_bits(
-//!         //! self,
-//!         //! (Register::get_bits(self) & !(0x00000003u32 << 14))
-//!         //!     | ((value as <Self as Register>::ValueType & 0x00000003u32) << 14),
+//!         // self.0.set_bits(
+//!         //     (self.0.get_bits() & !(0x00000003u32 << 14))
+//!         //         | ((value as <Self as Register>::ValueType & 0x00000003u32) << 14),
 //!         // );
 //!         self
 //!     }
@@ -114,24 +119,23 @@
 //!     pub fn get_field3(&self) -> u8 {
 //!         value_read!(self, 0x00000007u32, 11) as u8
 //!         // Will further expand into
-//!         // ((Register::get_bits(self) >> 11) & 0x00000007u32) as u8
+//!         // ((self.0.get_bits() >> 11) & 0x00000007u32) as u8
 //!     }
 //!     ///Bit 10 - Boolean field
 //!     #[inline]
 //!     pub fn is_field2_set(&self) -> bool {
 //!         value_read!(self, 0x00000001u32, 10) == 1
 //!         // Will further expand into
-//!         // ((Register::get_bits(self) >> 10) & 0x00000001u32) == 1
+//!         // ((self.0.get_bits() >> 10) & 0x00000001u32) == 1
 //!     }
 //!     ///Bit 10 - Boolean field
 //!     #[inline]
 //!     pub fn set_field2_value(&mut self, value: bool) -> &mut Self {
 //!         value_write!(self, 0x00000001u32, 10, value as <Self as Register>::ValueType);
 //!         // Will further expand into
-//!         // Register::set_bits(
-//!         //! self,
-//!         //! (Register::get_bits(self) & !(0x00000001u32 << 10))
-//!         //!     | ((value as <Self as Register>::ValueType & 0x00000001u32) << 10),
+//!         // self.0.set_bits(
+//!         //     (self.0.get_bits() & !(0x00000001u32 << 10))
+//!         //         | ((value as <Self as Register>::ValueType & 0x00000001u32) << 10),
 //!         // );
 //!         self
 //!     }
@@ -153,7 +157,7 @@
 //!         <CustomType as TryFrom<<Self as Register>::ValueType>>::try_from(value_read!(self, 0x00000003u32, 8))
 //!         // Will further expand into
 //!         // <CustomType as TryFrom<<Self as Register>::ValueType>>::try_from(
-//!         //! (Register::get_bits(self) >> 8) & 0x00000003u32,
+//!         //     (self.0.get_bits() >> 8) & 0x00000003u32,
 //!         // )
 //!     }
 //!     ///Bits 8:9 - Enum field
@@ -165,12 +169,10 @@
 //!     {
 //!         value_write!(self, 0x00000003u32, 8, <<Self as Register>::ValueType as TryFrom<#ty>>::try_from(value)?);
 //!         // Will further expand into
-//!         // Register::set_bits(
-//!         //! self,
-//!         //! (Register::get_bits(self) & !(0x00000003u32 << 8))
-//!         //!     | ((<<Self as Register>::ValueType as TryFrom<CustomType>>::try_from(value)?
-//!         //!         & 0x00000003u32)
-//!         //!         << 8),
+//!         // self.0.set_bits(
+//!         //     (self.0.get_bits() & !(0x00000003u32 << 8))
+//!         //         | ((<<Self as Register>::ValueType as TryFrom<CustomType>>::try_from(value)?
+//!         //             & 0x00000003u32) << 8),
 //!         // );
 //!         Ok(self)
 //!     }
@@ -179,17 +181,16 @@
 //!     pub fn get_field0(&self) -> u8 {
 //!         value_read!(self, 0x000000FFu32, 0) as u8
 //!         // Will further expand into
-//!         // ((Register::get_bits(self) >> 0) & 0x000000FFu32) as u8
+//!         // ((self.0.get_bits() >> 0) & 0x000000FFu32) as u8
 //!     }
 //!     ///Bits 0:7 - Read-write by default long field
 //!     #[inline]
 //!     pub fn set_field0(&mut self, value: u8) -> &mut Self {
 //!         value_write!(self, 0x000000FFu32, 0, value as <Self as Register>::ValueType);
 //!         // Will further expand into
-//!         // Register::set_bits(
-//!         //! self,
-//!         //! (Register::get_bits(self) & !(0x000000FFu32 << 0))
-//!         //!     | ((value as <Self as Register>::ValueType & 0x000000FFu32) << 0),
+//!         // self.0.set_bits(
+//!         //     (self.0.get_bits() & !(0x000000FFu32 << 0))
+//!         //         | ((value as <Self as Register>::ValueType & 0x000000FFu32) << 0),
 //!         // );
 //!         self
 //!     }
