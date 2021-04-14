@@ -9,11 +9,11 @@
 //! # How to use
 //!
 //! ```bash
-//! $ cargo ral-gen --svd <svd file location> --out <target project directory>
+//! $ cargo ral-gen --svd <svd file location> --overrides <yml file location> --out <target project directory>
 //! ```
 //! or short form
 //! ```bash
-//! $ cargo ral-gen -i <svd file location> -o <target project directory>
+//! $ cargo ral-gen -i <svd file location> -e <yml file location> -o <target project directory>
 //! ```
 //!
 //! # Overrides
