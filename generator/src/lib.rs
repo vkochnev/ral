@@ -9,11 +9,11 @@
 //! # How to use
 //!
 //! ```bash
-//! $ cargo ral-gen --svd <svd file location> --overrides <yml file location> --out <target project directory>
+//! $ cargo ral-gen --svd <SVD file> --overrides <YML file> --out <Target dir>
 //! ```
 //! or short form
 //! ```bash
-//! $ cargo ral-gen -i <svd file location> -e <yml file location> -o <target project directory>
+//! $ cargo ral-gen -i <SVD file> -e <YML file> -o <Target dir>
 //! ```
 //!
 //! # Overrides
@@ -95,30 +95,25 @@ mod peripheral;
 mod register;
 
 /// Generates module structure
-pub fn generate(
-    svd_file_name: &str,
-    overrides_file_name: Option<&str>,
-    project_dir: &str,
-) -> Result<()> {
-    let project_dir = Path::new(project_dir);
-    let device = load_device(svd_file_name)?;
-    let overrides = load_overrides(overrides_file_name)?;
+pub fn generate(svd_file: &Path, overrides_file: Option<&Path>, project_dir: &Path) -> Result<()> {
+    let device = load_device(svd_file)?;
+    let overrides = load_overrides(overrides_file)?;
     generate::generate_package(project_dir, _Package::build(&device, overrides.as_ref()))?;
     Ok(())
 }
 
-fn load_device(svd_file_name: &str) -> Result<Device> {
+fn load_device(svd_file: &Path) -> Result<Device> {
     let file = &mut String::new();
-    File::open(svd_file_name)?.read_to_string(file)?;
+    File::open(svd_file)?.read_to_string(file)?;
     svd::parse(file)
 }
 
-fn load_overrides(overrides_file_name: Option<&str>) -> Result<Option<DeviceOverrides>> {
-    if overrides_file_name.is_none() {
+fn load_overrides(overrides_file: Option<&Path>) -> Result<Option<DeviceOverrides>> {
+    if overrides_file.is_none() {
         return Ok(None);
     }
     let file = &mut String::new();
-    File::open(overrides_file_name.unwrap())?.read_to_string(file)?;
+    File::open(overrides_file.unwrap())?.read_to_string(file)?;
 
     let overrides: DeviceOverrides = serde_yaml::from_str(file)?;
     Ok(Some(overrides))
