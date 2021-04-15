@@ -1,0 +1,16 @@
+[package]
+name = "ral"
+version = "0.2.0"
+description = "Base layer for generated libraries for specific MCUs"
+authors = ["Vasily Kochnev"]
+edition = "2018"
+repository = "https://github.com/vkochnev/ral"
+documentation = "https://docs.rs/ral"
+license = "MIT OR Apache-2.0"
+readme = "../README.md"
+categories = ["embedded", "no-std", "hardware-support"]
+keywords = ["svd", "embedded", "register", "bare-metal", "ral"]
+
+[dependencies]
+vcell = "0.1"
+ral-macro = { path = "../macro", version = "0.2" }
