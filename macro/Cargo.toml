@@ -5,10 +5,11 @@ description = "The ral procedural macro implementations"
 authors = ["Vasily Kochnev"]
 edition = "2018"
 repository = "https://github.com/vkochnev/ral"
+documentation = "https://docs.rs/ral-macro"
 license = "MIT OR Apache-2.0"
 readme = "../README.md"
 categories = ["embedded", "no-std", "hardware-support"]
-keywords = ["register", "bare-metal", "no-std", "ral"]
+keywords = ["svd", "embedded", "register", "bare-metal", "ral"]
 
 [lib]
 proc-macro = true

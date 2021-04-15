@@ -24,14 +24,15 @@ impl<'a> _Device<'a> {
 
 impl<'a> Display for _Device<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "#![no_std]\n")?;
         if let Some(description) = self.description {
             write!(
                 f,
-                "#![doc = \"{description}\"]\n\n",
+                "#![doc = \"{description}\"]\n",
                 description = description
             )?;
         }
-        write!(f, "pub mod peripherals;")
+        write!(f, "\npub mod peripherals;")
     }
 }
 

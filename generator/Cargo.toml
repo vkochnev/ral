@@ -5,10 +5,16 @@ description = "Base layer generator for specific MCUs"
 authors = ["Vasily Kochnev"]
 edition = "2018"
 repository = "https://github.com/vkochnev/ral"
+documentation = "https://docs.rs/ral-gen"
 license = "MIT OR Apache-2.0"
 readme = "../README.md"
-categories = ["embedded", "no-std", "hardware-support"]
-keywords = ["register", "bare-metal", "no-std", "ral"]
+categories = ["embedded", "no-std", "hardware-support", "command-line-utilities"]
+keywords = ["svd", "embedded", "register", "bare-metal", "ral", "generator"]
+
+[[bin]]
+doc = false
+name = "ral-gen"
+path = "src/main.rs"
 
 [dependencies]
 svd-parser = "0.10"
