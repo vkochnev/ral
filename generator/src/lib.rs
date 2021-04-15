@@ -55,7 +55,7 @@
 //!
 //! # What will be generated
 //!
-//! Module structure described in [ral-macro](https://docs.rs/ral-macro) crate documentation will be generated
+//! Module structure described in [ral](https://docs.rs/ral) crate documentation will be generated
 //!
 //! Also `Cargo.toml` will be generated with content
 //! ```toml
