@@ -1,6 +1,6 @@
 [package]
 name = "ral-gen"
-version = "0.2.0-SNAPSHOT"
+version = "0.3.0-SNAPSHOT"
 description = "Base layer generator for specific MCUs"
 authors = ["Vasily Kochnev"]
 edition = "2018"
@@ -9,7 +9,7 @@ documentation = "https://docs.rs/ral-gen"
 license = "MIT OR Apache-2.0"
 readme = "../README.md"
 categories = ["embedded", "no-std", "hardware-support", "command-line-utilities"]
-keywords = ["svd", "embedded", "register", "bare-metal", "ral", "generator"]
+keywords = ["svd", "embedded", "register", "ral", "generator"]
 
 [[bin]]
 doc = false

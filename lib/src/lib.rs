@@ -227,7 +227,7 @@
 //! ```
 //!
 //! So the recommended module hierarchy is
-//! ```ignore
+//! ```text,ignore
 //! src/
 //! ├── lib.rs
 //! └── peripherals/

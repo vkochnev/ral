@@ -1,6 +1,6 @@
 [package]
 name = "ral"
-version = "0.2.0-SNAPSHOT"
+version = "0.3.0-SNAPSHOT"
 description = "Base layer for generated libraries for specific MCUs"
 authors = ["Vasily Kochnev"]
 edition = "2018"
@@ -12,5 +12,5 @@ categories = ["embedded", "no-std", "hardware-support"]
 keywords = ["svd", "embedded", "register", "bare-metal", "ral"]
 
 [dependencies]
-vcell = "0.1.0"
-ral-macro = { path = "../macro", version = "=0.2.0-SNAPSHOT" }
+vcell = "0.1"
+ral-macro = { path = "../macro", version = "0.3.0-SNAPSHOT" }
