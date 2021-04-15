@@ -1,6 +1,11 @@
 # WIP: Register Access Layer
 The intention of this library is to provide base layer for generated libraries for specific MCUs
 
+See documentation of enclosed crates
+- [ral](https://docs.rs/ral)
+- [ral-macro](https://docs.rs/ral-macro)
+- [ral-gen](https://docs.rs/ral-gen)
+
 ## License
 
 Licensed under either of
