@@ -1,6 +1,7 @@
 use crate::device::_Device;
 use crate::overrides::DeviceOverrides;
 use indoc::writedoc;
+use semver::Version;
 use std::fmt::{Display, Formatter, Result};
 use svd_parser::Device;
 
@@ -88,6 +89,9 @@ impl<'a> Display for _Package<'a> {
                 description = description
             )?;
         }
+        let version = env!("CARGO_PKG_VERSION");
+        let mut ral_version = Version::parse(version).map_err(|_| std::fmt::Error::default())?;
+        ral_version.patch = 0;
         writedoc!(
             f,
             "
@@ -95,9 +99,10 @@ impl<'a> Display for _Package<'a> {
             edition = \"2018\"
             
             [dependencies]
-            ral = \"{version}\"
+            ral = \"{ral_version}\"
             ",
-            version = env!("CARGO_PKG_VERSION")
+            version = version,
+            ral_version = ral_version
         )?;
         if let Some(features) = self.features.as_ref() {
             write!(f, "\n[features]\n")?;
